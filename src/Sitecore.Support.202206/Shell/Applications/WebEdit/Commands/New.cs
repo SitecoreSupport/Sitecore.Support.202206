@@ -1,5 +1,6 @@
 ﻿namespace Sitecore.Support.Shell.Applications.WebEdit.Commands
 {
+    using Sitecore.Configuration;
     using Sitecore.Data;
     using Sitecore.Data.Items;
     using Sitecore.Diagnostics;
@@ -11,7 +12,10 @@
     using Sitecore.Sites;
     using Sitecore.Text;
     using Sitecore.Web.UI.Sheer;
+    using Sitecore.Xml;
     using System;
+    using System.Collections;
+    using System.Xml;
 
     [UsedImplicitly, System.Obsolete("This method is obsolete and will be removed in the next product version. Please use SPEAK JS approach instead.")]
     [System.Serializable]
@@ -34,7 +38,10 @@
                         ','
                     });
                     string text = array[0];
-                    string name = Uri.UnescapeDataString(array[1]);
+                    #region Sitecore.Support.202206
+                    string name = this.UseExperienceEditorDecodeNames(Uri.UnescapeDataString(array[1]));
+                    //string name = Uri.UnescapeDataString(array[1]);
+                    #endregion Sitecore.Support.202206
                     if (ShortID.IsShortID(text))
                     {
                         text = ShortID.Parse(text).ToID().ToString();
@@ -86,5 +93,63 @@
                 args.WaitForPostBack();
             }
         }
+
+        #region Sitecore.Support.202206
+
+        private static volatile string[] _experienceEditorDecodeNames;
+        private static readonly object _lock = new object();
+
+        /// <summary>
+        /// Uses the "ExperienceEditorDecodeNames" setting to decode the item name
+        /// </summary>
+        /// <param name="name">The item name to be decoded</param>
+        /// <returns></returns>
+        private string UseExperienceEditorDecodeNames(string name)
+        {
+            string[] experienceEditorDecodeNames = ExperienceEditorDecodeNames;
+            for (int i = 0; i < experienceEditorDecodeNames.Length - 1; i += 2)
+            {
+                if (name.Contains(experienceEditorDecodeNames[i]))
+                {
+                    name = name.Replace(experienceEditorDecodeNames[i], experienceEditorDecodeNames[i + 1]);
+                }
+            }
+            return name;
+        }
+
+        /// <summary>
+        /// Decodes the item name in the Experience Editor
+        /// </summary>
+        private static string[] ExperienceEditorDecodeNames
+        {
+            get
+            {
+                if (_experienceEditorDecodeNames == null)
+                {
+                    object @lock = _lock;
+                    lock (@lock)
+                    {
+                        if (_experienceEditorDecodeNames == null)
+                        {
+                            ArrayList arrayList = new ArrayList();
+                            XmlNodeList configNodes = Factory.GetConfigNodes("experienceEditorDecodeNames/replace");
+                            foreach (XmlNode node in configNodes)
+                            {
+                                if (XmlUtil.GetAttribute("mode", node) != "off")
+                                {
+                                    string attribute = XmlUtil.GetAttribute("find", node);
+                                    string attribute2 = XmlUtil.GetAttribute("replaceWith", node);
+                                    arrayList.Add(attribute);
+                                    arrayList.Add(attribute2);
+                                }
+                            }
+                            _experienceEditorDecodeNames = (arrayList.ToArray(typeof(string)) as string[]);
+                        }
+                    }
+                }
+                return _experienceEditorDecodeNames;
+            }
+        }
+        #endregion Sitecore.Support.202206
     }
 }
